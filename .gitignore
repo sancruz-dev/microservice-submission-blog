@@ -1,0 +1,25 @@
+## .NET
+bin/
+obj/
+out/
+
+## Rider / VS / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+## Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+## OS
+.DS_Store
+Thumbs.db
+
+## env
+.env
+.env.local
