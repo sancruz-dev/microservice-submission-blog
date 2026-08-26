@@ -25,4 +25,11 @@ public sealed class InMemorySubmissionRepository : ISubmissionRepository
         _submissions.TryGetValue(id, out var submission);
         return Task.FromResult(submission);
     }
+
+    public Task<IReadOnlyList<Submission>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<Submission> all = [.. _submissions.Values];
+        return Task.FromResult(all);
+    }
+
 }

@@ -12,6 +12,7 @@ public static class SubmissionEndpoints
 
         group.MapPost("/", CreateSubmission);
         group.MapGet("/{id:guid}", GetSubmission);
+        group.MapGet("/", GetAllSubmissions);
     }
 
     private static async Task<IResult> CreateSubmission(
@@ -72,5 +73,18 @@ public static class SubmissionEndpoints
         return submission is null
             ? Results.NotFound()
             : Results.Ok(SubmissionResponse.FromDomain(submission));
+    }
+
+
+    private static async Task<IResult> GetAllSubmissions(
+        SubmissionService submissionService,
+        CancellationToken cancellationToken)
+    {
+        var submissions = await submissionService.GetAllAsync(cancellationToken);
+
+        // Mapeia a lista de domínios para a lista de respostas da API
+        var response = submissions.Select(SubmissionResponse.FromDomain);
+
+        return Results.Ok(response);
     }
 }

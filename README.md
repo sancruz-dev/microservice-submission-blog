@@ -5,17 +5,6 @@ artigos técnicos através de um workflow de curadoria humana até a publicaçã
 no [blog](../sancruzblog-nextjs). Ver [docs/architecture.md](docs/architecture.md)
 para a visão completa do sistema e o roadmap de fases.
 
-## Estado atual (Fase 2)
-
-Este serviço está no estágio de **scaffolding**: estrutura do projeto,
-modelo de domínio (`Submission` e seu ciclo de vida) e dois endpoints HTTP,
-com persistência **em memória** (não sobrevive a um restart). Ainda não há:
-
-- upload/validação de conteúdo MDX (Fase 3)
-- persistência real / banco de dados (Fase 4)
-- Docker (Fase 5)
-- mensageria, Pipefy, GitHub, CI/CD (Fases 6+)
-
 ## Stack
 
 - .NET 9 / ASP.NET Core (Minimal APIs)

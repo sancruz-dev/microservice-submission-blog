@@ -26,4 +26,8 @@ public sealed class SubmissionService(ISubmissionRepository repository)
 
     public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         repository.GetByIdAsync(id, cancellationToken);
+
+    public Task<IReadOnlyList<Submission>> GetAllAsync(CancellationToken cancellationToken = default) =>
+    repository.GetAllAsync(cancellationToken);
+
 }
