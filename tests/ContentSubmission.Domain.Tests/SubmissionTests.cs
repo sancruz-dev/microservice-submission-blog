@@ -11,7 +11,8 @@ public class SubmissionTests
         category: "Backend",
         level: SubmissionLevel.Intermediate,
         slug: Slug.Create("how-rabbitmq-works"),
-        tags: ["rabbitmq", "messaging"]);
+        tags: ["rabbitmq", "messaging"],
+        body: "RabbitMQ is a message broker.");
 
     [Fact]
     public void Create_sets_initial_status_to_received()
@@ -32,7 +33,8 @@ public class SubmissionTests
             "Backend",
             SubmissionLevel.Beginner,
             Slug.Create("title"),
-            [" rabbitmq ", "RabbitMQ", "messaging"]);
+            [" rabbitmq ", "RabbitMQ", "messaging"],
+            "Body text.");
 
         Assert.Equal(["rabbitmq", "messaging"], submission.Tags);
     }
@@ -50,7 +52,25 @@ public class SubmissionTests
             "Backend",
             SubmissionLevel.Beginner,
             Slug.Create("slug"),
-            []));
+            [],
+            "Body text."));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Create_rejects_missing_body(string? body)
+    {
+        Assert.Throws<ArgumentException>(() => Submission.Create(
+            "Title",
+            "Description",
+            SubmissionAuthor.Create("Jane Doe", "jane@example.com"),
+            "Backend",
+            SubmissionLevel.Beginner,
+            Slug.Create("slug"),
+            [],
+            body));
     }
 
     [Fact]

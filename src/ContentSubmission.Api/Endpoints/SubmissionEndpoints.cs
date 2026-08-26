@@ -1,43 +1,61 @@
 using ContentSubmission.Api.Contracts;
+using ContentSubmission.Application.Exceptions;
 using ContentSubmission.Application.Submissions;
-using ContentSubmission.Domain;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ContentSubmission.Api.Endpoints;
 
 public static class SubmissionEndpoints
 {
+    private const long MaxFileSizeBytes = 300 * 1024; // 300 KB - text-only content, images are referenced by path.
+    private const string RequiredExtension = ".mdx";
+
     public static void MapSubmissionEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/submissions").WithTags("Submissions");
 
-        group.MapPost("/", CreateSubmission);
+        group.MapPost("/", CreateSubmission).DisableAntiforgery();
         group.MapGet("/{id:guid}", GetSubmission);
         group.MapGet("/", GetAllSubmissions);
     }
 
     private static async Task<IResult> CreateSubmission(
-        CreateSubmissionRequest request,
+        IFormFile? file,
+        [FromForm] string? authorEmail,
         SubmissionService submissionService,
         CancellationToken cancellationToken)
     {
-        if (!Enum.TryParse<SubmissionLevel>(request.Level, ignoreCase: true, out var level))
+        if (file is null || file.Length == 0)
         {
-            var allowedLevels = string.Join(", ", Enum.GetNames<SubmissionLevel>());
             return Results.ValidationProblem(new Dictionary<string, string[]>
             {
-                [nameof(request.Level)] = [$"Level must be one of: {allowedLevels}."],
+                ["file"] = ["A .mdx file is required."],
             });
         }
 
-        var input = new CreateSubmissionInput(
-            request.Title,
-            request.Description,
-            request.AuthorName,
-            request.AuthorEmail,
-            request.Category,
-            level,
-            request.Slug,
-            request.Tags);
+        if (!Path.GetExtension(file.FileName).Equals(RequiredExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["file"] = [$"File must have a '{RequiredExtension}' extension."],
+            });
+        }
+
+        if (file.Length > MaxFileSizeBytes)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["file"] = [$"File cannot be larger than {MaxFileSizeBytes / 1024} KB."],
+            });
+        }
+
+        string rawMdx;
+        using (var reader = new StreamReader(file.OpenReadStream()))
+        {
+            rawMdx = await reader.ReadToEndAsync(cancellationToken);
+        }
+
+        var input = new CreateSubmissionInput(rawMdx, authorEmail);
 
         try
         {
@@ -46,22 +64,14 @@ public static class SubmissionEndpoints
 
             return Results.Created($"/submissions/{response.Id}", response);
         }
-        catch (ArgumentException ex)
+        catch (InvalidSubmissionContentException ex)
         {
             return Results.ValidationProblem(new Dictionary<string, string[]>
             {
-                [ex.ParamName ?? "request"] = [CleanMessage(ex)],
+                ["content"] = [.. ex.Errors],
             });
         }
     }
-
-    /// <summary>
-    /// ArgumentException.Message appends "(Parameter 'x')" to whatever message was
-    /// passed in. That's redundant here since the field name is already the
-    /// dictionary key, so it's stripped for a cleaner API response.
-    /// </summary>
-    private static string CleanMessage(ArgumentException ex) =>
-        ex.Message.Split(" (Parameter ", 2)[0];
 
     private static async Task<IResult> GetSubmission(
         Guid id,
@@ -75,14 +85,13 @@ public static class SubmissionEndpoints
             : Results.Ok(SubmissionResponse.FromDomain(submission));
     }
 
-
     private static async Task<IResult> GetAllSubmissions(
         SubmissionService submissionService,
         CancellationToken cancellationToken)
     {
         var submissions = await submissionService.GetAllAsync(cancellationToken);
 
-        // Mapeia a lista de domínios para a lista de respostas da API
+        // Maps the list of domain submissions to the list of API responses.
         var response = submissions.Select(SubmissionResponse.FromDomain);
 
         return Results.Ok(response);

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using ContentSubmission.Api.Contracts;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -10,20 +11,43 @@ public class SubmissionsEndpointsTests(WebApplicationFactory<Program> factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
 
-    private static CreateSubmissionRequest ValidRequest() => new(
-        Title: "How RabbitMQ works",
-        Description: "An introduction to messaging.",
-        AuthorName: "Jane Doe",
-        AuthorEmail: "jane@example.com",
-        Category: "Backend",
-        Level: "Intermediate",
-        Slug: "how-rabbitmq-works",
-        Tags: ["rabbitmq", "messaging"]);
+    private const string ValidMdx = """
+        ---
+        title: How RabbitMQ works
+        description: An introduction to messaging.
+        slug: how-rabbitmq-works
+        author: Jane Doe
+        category: Backend
+        level: Intermediate
+        tags:
+          - rabbitmq
+          - messaging
+        ---
+
+        RabbitMQ is a message broker.
+        """;
+
+    private static MultipartFormDataContent BuildRequest(
+        string mdx = ValidMdx,
+        string authorEmail = "jane@example.com",
+        string fileName = "how-rabbitmq-works.mdx")
+    {
+        var content = new MultipartFormDataContent
+        {
+            { new StringContent(authorEmail), "authorEmail" },
+        };
+
+        var fileContent = new ByteArrayContent(Encoding.UTF8.GetBytes(mdx));
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");
+        content.Add(fileContent, "file", fileName);
+
+        return content;
+    }
 
     [Fact]
     public async Task POST_creates_a_submission_and_returns_201_with_location()
     {
-        var response = await _client.PostAsJsonAsync("/submissions", ValidRequest());
+        var response = await _client.PostAsync("/submissions", BuildRequest());
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.NotNull(response.Headers.Location);
@@ -32,12 +56,15 @@ public class SubmissionsEndpointsTests(WebApplicationFactory<Program> factory)
         Assert.NotNull(body);
         Assert.Equal("Received", body!.Status);
         Assert.Equal("how-rabbitmq-works", body.Slug);
+        Assert.Equal("Jane Doe", body.AuthorName);
+        Assert.Equal("jane@example.com", body.AuthorEmail);
+        Assert.Equal(["rabbitmq", "messaging"], body.Tags);
     }
 
     [Fact]
     public async Task GET_returns_a_previously_created_submission()
     {
-        var createResponse = await _client.PostAsJsonAsync("/submissions", ValidRequest());
+        var createResponse = await _client.PostAsync("/submissions", BuildRequest());
         var created = await createResponse.Content.ReadFromJsonAsync<SubmissionResponse>();
 
         var getResponse = await _client.GetAsync($"/submissions/{created!.Id}");
@@ -56,32 +83,108 @@ public class SubmissionsEndpointsTests(WebApplicationFactory<Program> factory)
     }
 
     [Fact]
-    public async Task POST_returns_400_when_title_is_missing()
+    public async Task POST_returns_400_when_no_file_is_sent()
     {
-        var request = ValidRequest() with { Title = null };
+        var content = new MultipartFormDataContent
+        {
+            { new StringContent("jane@example.com"), "authorEmail" },
+        };
 
-        var response = await _client.PostAsJsonAsync("/submissions", request);
+        var response = await _client.PostAsync("/submissions", content);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public async Task POST_returns_400_for_an_unsafe_slug()
+    public async Task POST_returns_400_for_a_non_mdx_extension()
     {
-        var request = ValidRequest() with { Slug = "../../etc/passwd" };
-
-        var response = await _client.PostAsJsonAsync("/submissions", request);
+        var response = await _client.PostAsync("/submissions", BuildRequest(fileName: "post.txt"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
-    public async Task POST_returns_400_for_an_invalid_level()
+    public async Task POST_returns_400_for_a_file_over_the_size_limit()
     {
-        var request = ValidRequest() with { Level = "Expert" };
+        var oversizedBody = "---\ntitle: x\ndescription: y\nslug: x\nauthor: a\ncategory: b\nlevel: Beginner\n---\n\n"
+            + new string('a', 400 * 1024);
 
-        var response = await _client.PostAsJsonAsync("/submissions", request);
+        var response = await _client.PostAsync("/submissions", BuildRequest(oversizedBody));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_returns_400_when_frontmatter_is_missing()
+    {
+        var response = await _client.PostAsync("/submissions", BuildRequest("# No frontmatter here"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_returns_400_for_an_invalid_slug_in_frontmatter()
+    {
+        const string mdx = """
+            ---
+            title: x
+            description: y
+            slug: ../../etc/passwd
+            author: a
+            category: b
+            level: Beginner
+            ---
+
+            Body.
+            """;
+
+        var response = await _client.PostAsync("/submissions", BuildRequest(mdx));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_returns_400_for_content_with_an_import_statement()
+    {
+        const string mdx = """
+            ---
+            title: x
+            description: y
+            slug: x
+            author: a
+            category: b
+            level: Beginner
+            ---
+
+            import Foo from './foo';
+
+            Body.
+            """;
+
+        var response = await _client.PostAsync("/submissions", BuildRequest(mdx));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task POST_reports_multiple_errors_at_once()
+    {
+        const string mdx = """
+            ---
+            slug: ../bad
+            level: Expert
+            ---
+
+            <script>alert(1)</script>
+            """;
+
+        var response = await _client.PostAsync("/submissions", BuildRequest(mdx));
+        var problem = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var errors = (System.Text.Json.JsonElement)problem!["errors"];
+        var contentErrors = errors.GetProperty("content").EnumerateArray().Select(e => e.GetString()).ToList();
+
+        Assert.True(contentErrors.Count > 1, "Expected multiple validation errors in a single response.");
     }
 }

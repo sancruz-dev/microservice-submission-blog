@@ -13,6 +13,7 @@ public sealed record SubmissionResponse(
     string Level,
     string Slug,
     IReadOnlyList<string> Tags,
+    string Body,
     string? RejectionReason,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
@@ -28,6 +29,7 @@ public sealed record SubmissionResponse(
         submission.Level.ToString(),
         submission.Slug.Value,
         submission.Tags,
+        submission.Body,
         submission.RejectionReason,
         submission.CreatedAt,
         submission.UpdatedAt);

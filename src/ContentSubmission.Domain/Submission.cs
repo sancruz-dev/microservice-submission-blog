@@ -32,6 +32,7 @@ public sealed class Submission
     public SubmissionLevel Level { get; }
     public Slug Slug { get; }
     public IReadOnlyList<string> Tags { get; }
+    public string Body { get; }
     public SubmissionStatus Status { get; private set; }
     public string? RejectionReason { get; private set; }
     public DateTimeOffset CreatedAt { get; }
@@ -46,6 +47,7 @@ public sealed class Submission
         SubmissionLevel level,
         Slug slug,
         IReadOnlyList<string> tags,
+        string body,
         DateTimeOffset createdAt)
     {
         Id = id;
@@ -56,6 +58,7 @@ public sealed class Submission
         Level = level;
         Slug = slug;
         Tags = tags;
+        Body = body;
         Status = SubmissionStatus.Received;
         CreatedAt = createdAt;
         UpdatedAt = createdAt;
@@ -69,6 +72,7 @@ public sealed class Submission
         SubmissionLevel level,
         Slug slug,
         IEnumerable<string>? tags,
+        string? body,
         DateTimeOffset? createdAt = null)
     {
         if (string.IsNullOrWhiteSpace(title))
@@ -86,6 +90,11 @@ public sealed class Submission
             throw new ArgumentException("Category cannot be empty.", nameof(category));
         }
 
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            throw new ArgumentException("Body cannot be empty.", nameof(body));
+        }
+
         var normalizedTags = (tags ?? [])
             .Select(tag => tag.Trim())
             .Where(tag => tag.Length > 0)
@@ -101,6 +110,7 @@ public sealed class Submission
             level,
             slug,
             normalizedTags,
+            body.Trim(),
             createdAt ?? DateTimeOffset.UtcNow);
     }
 
