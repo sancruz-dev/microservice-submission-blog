@@ -11,6 +11,18 @@ builder.Services.AddOpenApi();
 builder.Services.AddSingleton<ISubmissionRepository, InMemorySubmissionRepository>();
 builder.Services.AddScoped<SubmissionService>();
 
+// Allows the Next.js frontend (a different origin) to call this API directly
+// from the browser. Origins come from config, not hardcoded, since the
+// allowed frontend origin(s) will differ between local dev and production.
+const string FrontendCorsPolicy = "Frontend";
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod());
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -19,6 +31,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors(FrontendCorsPolicy);
 
 app.MapSubmissionEndpoints();
 

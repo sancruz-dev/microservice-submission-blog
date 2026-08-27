@@ -16,6 +16,13 @@ Next.js (blog) --HTTP--> Content Submission Service --RabbitMQ--> Pipefy / GitHu
                               banco próprio
 ```
 
+O Next.js chama esta API diretamente do navegador (página `/submit`), não
+por um proxy interno — por isso o serviço precisa de CORS explícito para a
+origem do frontend (`Cors:AllowedOrigins` em `appsettings`; em
+desenvolvimento, `http://localhost:3000`). Nenhuma origem é permitida por
+padrão fora do ambiente de desenvolvimento até que a origem de produção do
+blog seja configurada.
+
 ## Camadas
 
 - **Domain**: `Submission` (aggregate root) e seus value objects
