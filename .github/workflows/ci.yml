@@ -19,3 +19,6 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
       - run: dotnet test --no-build --configuration Release
+
+      - name: Build Docker image
+        run: docker build -t content-submission-api .
