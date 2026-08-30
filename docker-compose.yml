@@ -1,0 +1,52 @@
+# Local development stack: Content Submission Service + its own SQL Server.
+# This is separate from (and doesn't touch) any SQL Server instance already
+# installed natively - it runs on its own port with its own volume, so both
+# can coexist. See docs/local-development.md for when to use which.
+#
+# RabbitMQ and the Next.js blog are deliberately not included here yet:
+# RabbitMQ has no producer/consumer code until Phase 6, and the blog already
+# runs fine on its own (npm run dev / Vercel) without needing SQL Server or
+# the .NET SDK installed.
+
+services:
+  sql-server:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD}"
+    ports:
+      - "14330:1433" # non-default host port: avoids clashing with a native SQL Server install
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  content-submission-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      sql-server:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__SubmissionDb: "Server=sql-server;Database=ContentSubmissionDb;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;"
+      Cors__AllowedOrigins__0: "http://localhost:3000"
+    ports:
+      - "5211:8080" # same host port as the native `dotnet run` default, so the
+        # blog's NEXT_PUBLIC_SUBMISSION_SERVICE_URL fallback works unchanged
+        # whether the API is running natively or via this compose file.
+
+volumes:
+  sqlserver-data:
