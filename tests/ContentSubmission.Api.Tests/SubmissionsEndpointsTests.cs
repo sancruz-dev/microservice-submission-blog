@@ -2,12 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using ContentSubmission.Api.Contracts;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace ContentSubmission.Api.Tests;
 
-public class SubmissionsEndpointsTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public class SubmissionsEndpointsTests(TestWebApplicationFactory factory)
+    : IClassFixture<TestWebApplicationFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();
 

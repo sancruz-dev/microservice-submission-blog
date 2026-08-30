@@ -2,13 +2,15 @@ using ContentSubmission.Api.Endpoints;
 using ContentSubmission.Application.Abstractions;
 using ContentSubmission.Application.Submissions;
 using ContentSubmission.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 
-// Phase 2: in-memory only. Real persistence (EF Core + database) lands in Phase 4.
-builder.Services.AddSingleton<ISubmissionRepository, InMemorySubmissionRepository>();
+builder.Services.AddDbContext<ContentSubmissionDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("SubmissionDb")));
+builder.Services.AddScoped<ISubmissionRepository, EfSubmissionRepository>();
 builder.Services.AddScoped<SubmissionService>();
 
 // Allows the Next.js frontend (a different origin) to call this API directly
@@ -28,6 +30,12 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    // No deployment pipeline exists yet (that's Phase 11), so applying pending
+    // migrations automatically on startup keeps local dev friction-free. This is
+    // not how migrations should be applied to a real environment.
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<ContentSubmissionDbContext>().Database.MigrateAsync();
 }
 
 app.UseHttpsRedirection();

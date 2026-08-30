@@ -36,8 +36,10 @@ blog seja configurada.
   (YamlDotNet, para o frontmatter) — nunca de uma implementação concreta de
   infraestrutura.
 - **Infrastructure**: implementações concretas das abstrações da Application.
-  Hoje só existe `InMemorySubmissionRepository` — placeholder até a Fase 4
-  trazer persistência real.
+  `EfSubmissionRepository` (EF Core + SQL Server) é a implementação real,
+  usada pela Api. `InMemorySubmissionRepository` continua existindo só como
+  dublê de teste para `ContentSubmission.Api.Tests` (ver
+  [Persistência](#persistência-fase-4) abaixo).
 - **Api**: endpoints HTTP (ASP.NET Core Minimal APIs), tradução entre
   contratos HTTP (DTOs) e o domínio.
 
@@ -121,20 +123,88 @@ seria tecnologia pela tecnologia — o valor real está nas checagens acima,
 que são baratas e pegam erros comuns antes de gastar um ciclo de CI ou o
 tempo de um curador.
 
-## Por que persistência em memória agora?
+## Persistência (Fase 4)
 
-A Fase 2 existe para validar a estrutura do serviço e o ciclo de vida da
-Submission, não o schema do banco. Fixar um schema de banco antes de saber
-exatamente quais campos os fluxos de Pipefy/GitHub (Fases 7-10) vão precisar
-seria comprometimento prematuro. `ISubmissionRepository` isola essa decisão:
-trocar a implementação em memória por EF Core na Fase 4 não deve exigir
-mudanças no Domain, na Application ou na Api.
+`ISubmissionRepository` (Application) tinha exatamente um propósito até
+aqui: isolar a Application/Domain de qual implementação concreta guarda os
+dados. A Fase 4 exercita isso trocando `InMemorySubmissionRepository` por
+`EfSubmissionRepository` (EF Core + SQL Server) como implementação real —
+sem qualquer mudança no Domain ou na Application.
+
+**Correção em relação ao que este documento dizia antes**: a tabela de fases
+listava `ProcessingAttempt` e auditoria como parte da Fase 4. Isso foi
+revisto — essas entidades existem para rastrear tentativas de integração
+externa (Pipefy/GitHub), que só chegam nas Fases 6-10. Desenhar esse schema
+agora, sem nenhum produtor real desses dados, seria o mesmo tipo de
+comprometimento prematuro que o uso de memória evitou na Fase 2. A Fase 4
+persiste **só** `Submission`.
+
+### Mapeamento objeto-relacional
+
+`Submission` continua um modelo de domínio rico (setters privados, sempre
+válido), não um DTO anêmico — isso tem um custo real de configuração do EF
+Core que vale documentar:
+
+- **`Slug`** e **`Tags`** são mapeados via `ValueConverter` para uma única
+  coluna (`nvarchar` e `nvarchar(max)`/JSON, respectivamente) — o mesmo
+  princípio do `Slug.Create()` sendo o único jeito de produzir um `Slug`
+  válido se aplica aqui: a conversão garante que o que sai do banco já passou
+  pela mesma validação.
+- **`SubmissionAuthor`** é mapeado como *EF Complex Type* (`ComplexProperty`,
+  não `OwnsOne`) — é um value object sem identidade própria, exatamente o
+  caso de uso que complex types (novidade do EF Core 8) resolvem, ao
+  contrário de owned entities (pensadas para algo com potencial de
+  identidade/tabela própria).
+- **`Status`** e **`Level`** são gravados como texto (`nvarchar`), não como
+  `int` — convenção legível ao inspecionar a tabela manualmente; o custo de
+  armazenamento extra é irrelevante para o volume esperado.
+- `Submission` ganhou um construtor privado sem parâmetros, reservado para o
+  EF Core materializar instâncias via reflection (setando cada propriedade
+  depois). O construtor rico usado por `Create()` continua sendo o único
+  caminho de construção pública — `Author` é um exemplo concreto de por que
+  isso foi necessário: o EF Core **nunca** faz constructor binding de uma
+  propriedade owned/complex no tipo dono, então a construção "tudo via
+  parâmetros" que funcionava em memória não é compatível com o
+  materializador do EF Core.
+
+### Estratégia de testes
+
+Três camadas, cada uma testando uma coisa diferente:
+
+- **`ContentSubmission.Api.Tests`**: continuam usando
+  `InMemorySubmissionRepository` (via `TestWebApplicationFactory`, que troca
+  o registro de DI e força `ASPNETCORE_ENVIRONMENT=Testing` para não rodar
+  migração automática). Testam comportamento HTTP/validação, não
+  persistência — não precisam de banco nenhum, nem em CI.
+- **`ContentSubmission.Infrastructure.Tests`** (novo): exercita
+  `EfSubmissionRepository` de verdade contra SQLite em memória. SQLite não é
+  SQL Server, mas aplica SQL real e valida exatamente o que este mapeamento
+  precisa provar (constructor binding, os conversores, o complex type) sem
+  exigir uma instância de banco disponível em CI.
+- **Verificação manual contra SQL Server real**: migração gerada com
+  `dotnet ef migrations add`, aplicada com `dotnet ef database update` contra
+  uma instância SQL Server de verdade, e testada via `curl` — incluindo
+  matar e reiniciar o processo da API para confirmar que os dados sobrevivem
+  ao restart (a prova que realmente importa, que nenhum teste automatizado
+  com SQLite substitui).
+
+### Configuração local
+
+A connection string vem de `ConnectionStrings:SubmissionDb`. Um valor
+genérico (`Server=localhost;...`) está versionado em
+`appsettings.Development.json` como *default* portável; a instância real de
+cada máquina de desenvolvimento (nome/instância variam por pessoa) deve ir em
+[.NET User Secrets](https://learn.microsoft.com/aspnet/core/security/app-secrets)
+(`dotnet user-secrets set "ConnectionStrings:SubmissionDb" "..."` dentro de
+`src/ContentSubmission.Api`), nunca commitada. Em desenvolvimento, migrações
+pendentes são aplicadas automaticamente no startup (`Database.MigrateAsync()`
+em `Program.cs`) — conveniente por ainda não existir pipeline de deploy
+(Fase 11); não é assim que migrações devem rodar num ambiente real.
 
 ## O que ainda não existe (por fase)
 
 | Fase | Escopo |
 |---|---|
-| 4 | Persistência real (EF Core + banco), incluindo `ProcessingAttempt` e auditoria |
 | 5 | Docker Compose para desenvolvimento local |
 | 6 | RabbitMQ e os primeiros eventos assíncronos |
 | 7-8 | Integração com Pipefy + webhooks |

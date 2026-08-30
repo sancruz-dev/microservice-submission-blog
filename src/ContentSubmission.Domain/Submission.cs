@@ -24,19 +24,28 @@ public sealed class Submission
             [SubmissionStatus.Rejected] = [],
         };
 
-    public Guid Id { get; }
-    public string Title { get; }
-    public string Description { get; }
-    public SubmissionAuthor Author { get; }
-    public string Category { get; }
-    public SubmissionLevel Level { get; }
-    public Slug Slug { get; }
-    public IReadOnlyList<string> Tags { get; }
-    public string Body { get; }
+    public Guid Id { get; private set; }
+    public string Title { get; private set; } = null!;
+    public string Description { get; private set; } = null!;
+    public SubmissionAuthor Author { get; private set; } = null!;
+    public string Category { get; private set; } = null!;
+    public SubmissionLevel Level { get; private set; }
+    public Slug Slug { get; private set; } = null!;
+    public IReadOnlyList<string> Tags { get; private set; } = null!;
+    public string Body { get; private set; } = null!;
     public SubmissionStatus Status { get; private set; }
     public string? RejectionReason { get; private set; }
-    public DateTimeOffset CreatedAt { get; }
+    public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+
+    /// <summary>
+    /// Reserved for EF Core materialization - every property is then set via
+    /// reflection, never left in this default state for real use. All public
+    /// construction goes through <see cref="Create"/>.
+    /// </summary>
+    private Submission()
+    {
+    }
 
     private Submission(
         Guid id,
