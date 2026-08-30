@@ -201,11 +201,36 @@ pendentes são aplicadas automaticamente no startup (`Database.MigrateAsync()`
 em `Program.cs`) — conveniente por ainda não existir pipeline de deploy
 (Fase 11); não é assim que migrações devem rodar num ambiente real.
 
+## Docker (Fase 5)
+
+`docker-compose.yml` sobe o Submission Service e um SQL Server próprio,
+isolado de qualquer instância nativa já instalada (porta e volume
+diferentes). Só esses dois — RabbitMQ ainda não tem produtor/consumidor
+(chega na Fase 6) e o blog Next.js já roda bem sozinho, sem depender de SQL
+Server nem do .NET SDK. Ver
+[docs/local-development.md](local-development.md) para os dois fluxos
+(nativo vs. Docker) lado a lado.
+
+Não há Kubernetes nem orquestração além do Compose — não faz sentido nesta
+etapa do projeto.
+
+**Uma pegadinha real encontrada ao testar restart**: a primeira versão desta
+fase adicionou `EnableRetryOnFailure()` ao `UseSqlServer(...)` como reforço
+de resiliência (falhas transitórias de conexão são mais comuns falando com
+um SQL Server dentro de um container). Isso quebrou o restart: como o
+`Database.MigrateAsync()` do startup roda dentro dessa mesma estratégia de
+retry, e `CREATE DATABASE` não é idempotente, uma tentativa que falhasse no
+meio (ex: conexão caiu logo após criar o banco) fazia o retry tentar
+`CREATE DATABASE` de novo — e falhar com "database already exists",
+derrubando a API num loop de crash. Removido; a resiliência real para "SQL
+Server ainda não terminou de subir" veio de `restart: unless-stopped` no
+Compose (nível de container, sem re-executar DDL não-idempotente), não de
+retry no nível da aplicação.
+
 ## O que ainda não existe (por fase)
 
 | Fase | Escopo |
 |---|---|
-| 5 | Docker Compose para desenvolvimento local |
 | 6 | RabbitMQ e os primeiros eventos assíncronos |
 | 7-8 | Integração com Pipefy + webhooks |
 | 9-10 | Integração com GitHub + Pull Requests automáticos |
