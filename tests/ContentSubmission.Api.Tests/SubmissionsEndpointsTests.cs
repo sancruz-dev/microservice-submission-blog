@@ -53,7 +53,11 @@ public class SubmissionsEndpointsTests(TestWebApplicationFactory factory)
 
         var body = await response.Content.ReadFromJsonAsync<SubmissionResponse>();
         Assert.NotNull(body);
-        Assert.Equal("Received", body!.Status);
+        // Content validation, the (fake) GitHub Issue creation and the UnderReview
+        // transition all happen synchronously within CreateAsync - see ADR-003 and
+        // SubmissionService.CreateAsync.
+        Assert.Equal("UnderReview", body!.Status);
+        Assert.NotNull(body.GitHubIssueNumber);
         Assert.Equal("how-rabbitmq-works", body.Slug);
         Assert.Equal("Jane Doe", body.AuthorName);
         Assert.Equal("jane@example.com", body.AuthorEmail);

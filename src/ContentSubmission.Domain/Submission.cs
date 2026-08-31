@@ -35,6 +35,21 @@ public sealed class Submission
     public string Body { get; private set; } = null!;
     public SubmissionStatus Status { get; private set; }
     public string? RejectionReason { get; private set; }
+
+    /// <summary>
+    /// Number of the GitHub Issue (in the private curation repository) that represents
+    /// this submission during human review - see docs/decisions/ADR-003. Null until
+    /// <see cref="SendForReview"/> creates that Issue and the number is known.
+    /// </summary>
+    public int? GitHubIssueNumber { get; private set; }
+
+    /// <summary>
+    /// Number of the Pull Request (in the public blog repository) that publishes
+    /// this submission's content - see docs ADR-003/architecture.md. Null until
+    /// <see cref="StartPublishing"/> creates it right after approval.
+    /// </summary>
+    public int? GitHubPullRequestNumber { get; private set; }
+
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
@@ -127,11 +142,29 @@ public sealed class Submission
 
     public void MarkAsValidated() => TransitionTo(SubmissionStatus.Validated);
 
-    public void SendForReview() => TransitionTo(SubmissionStatus.UnderReview);
+    public void SendForReview(int gitHubIssueNumber)
+    {
+        if (gitHubIssueNumber <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(gitHubIssueNumber), "GitHub issue number must be positive.");
+        }
+
+        TransitionTo(SubmissionStatus.UnderReview);
+        GitHubIssueNumber = gitHubIssueNumber;
+    }
 
     public void Approve() => TransitionTo(SubmissionStatus.Approved);
 
-    public void StartPublishing() => TransitionTo(SubmissionStatus.Publishing);
+    public void StartPublishing(int gitHubPullRequestNumber)
+    {
+        if (gitHubPullRequestNumber <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(gitHubPullRequestNumber), "GitHub pull request number must be positive.");
+        }
+
+        TransitionTo(SubmissionStatus.Publishing);
+        GitHubPullRequestNumber = gitHubPullRequestNumber;
+    }
 
     public void MarkAsPublished() => TransitionTo(SubmissionStatus.Published);
 

@@ -15,6 +15,8 @@ public sealed record SubmissionResponse(
     IReadOnlyList<string> Tags,
     string Body,
     string? RejectionReason,
+    int? GitHubIssueNumber,
+    int? GitHubPullRequestNumber,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
@@ -31,6 +33,8 @@ public sealed record SubmissionResponse(
         submission.Tags,
         submission.Body,
         submission.RejectionReason,
+        submission.GitHubIssueNumber,
+        submission.GitHubPullRequestNumber,
         submission.CreatedAt,
         submission.UpdatedAt);
 }

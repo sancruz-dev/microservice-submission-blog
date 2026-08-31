@@ -26,6 +26,8 @@ public sealed class SubmissionConfiguration : IEntityTypeConfiguration<Submissio
         builder.Property(s => s.Category).HasMaxLength(100).IsRequired();
         builder.Property(s => s.Body).IsRequired();
         builder.Property(s => s.RejectionReason).HasMaxLength(1000);
+        builder.Property(s => s.GitHubIssueNumber);
+        builder.Property(s => s.GitHubPullRequestNumber);
 
         builder.Property(s => s.Status)
             .HasConversion<string>()

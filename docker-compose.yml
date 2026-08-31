@@ -3,10 +3,10 @@
 # installed natively - it runs on its own port with its own volume, so both
 # can coexist. See docs/local-development.md for when to use which.
 #
-# RabbitMQ and the Next.js blog are deliberately not included here yet:
-# RabbitMQ has no producer/consumer code until Phase 6, and the blog already
-# runs fine on its own (npm run dev / Vercel) without needing SQL Server or
-# the .NET SDK installed.
+# The Next.js blog is deliberately not included here: it already runs fine
+# on its own (npm run dev / Vercel) without needing SQL Server or the .NET
+# SDK installed. RabbitMQ was cut from the roadmap entirely - see
+# docs/decisions/ADR-002-why-not-rabbitmq-and-pipefy.md.
 
 services:
   sql-server:
@@ -43,6 +43,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__SubmissionDb: "Server=sql-server;Database=ContentSubmissionDb;User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True;"
       Cors__AllowedOrigins__0: "http://localhost:3000"
+      # GitHub:Owner/CurationRepo aren't secret, so they come from
+      # appsettings.Development.json (baked into the image) instead of being
+      # repeated here. Only the token needs to come from .env - see ADR-003.
+      GitHub__Token: "${GITHUB_TOKEN}"
     ports:
       - "5211:8080" # same host port as the native `dotnet run` default, so the
         # blog's NEXT_PUBLIC_SUBMISSION_SERVICE_URL fallback works unchanged

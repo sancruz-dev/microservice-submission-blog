@@ -5,6 +5,7 @@ using ContentSubmission.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -12,9 +13,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ContentSubmission.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(ContentSubmissionDbContext))]
-    partial class ContentSubmissionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260831001448_AddGitHubIssueNumber")]
+    partial class AddGitHubIssueNumber
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -47,9 +50,6 @@ namespace ContentSubmission.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(1000)");
 
                     b.Property<int?>("GitHubIssueNumber")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("GitHubPullRequestNumber")
                         .HasColumnType("int");
 
                     b.Property<string>("Level")
