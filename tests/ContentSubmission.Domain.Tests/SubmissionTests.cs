@@ -80,9 +80,9 @@ public class SubmissionTests
 
         submission.MarkAsValidating();
         submission.MarkAsValidated();
-        submission.SendForReview();
+        submission.SendForReview(42);
         submission.Approve();
-        submission.StartPublishing();
+        submission.StartPublishing(7);
         submission.MarkAsPublished();
 
         Assert.Equal(SubmissionStatus.Published, submission.Status);
@@ -106,11 +106,63 @@ public class SubmissionTests
         var submission = CreateValidSubmission();
         submission.MarkAsValidating();
         submission.MarkAsValidated();
-        submission.SendForReview();
+        submission.SendForReview(42);
 
         submission.Reject("Not a good fit for the blog.");
 
         Assert.Equal(SubmissionStatus.Rejected, submission.Status);
+    }
+
+    [Fact]
+    public void SendForReview_sets_the_github_issue_number()
+    {
+        var submission = CreateValidSubmission();
+        submission.MarkAsValidating();
+        submission.MarkAsValidated();
+
+        submission.SendForReview(42);
+
+        Assert.Equal(42, submission.GitHubIssueNumber);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void SendForReview_rejects_non_positive_issue_numbers(int issueNumber)
+    {
+        var submission = CreateValidSubmission();
+        submission.MarkAsValidating();
+        submission.MarkAsValidated();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => submission.SendForReview(issueNumber));
+    }
+
+    [Fact]
+    public void StartPublishing_sets_the_github_pull_request_number()
+    {
+        var submission = CreateValidSubmission();
+        submission.MarkAsValidating();
+        submission.MarkAsValidated();
+        submission.SendForReview(42);
+        submission.Approve();
+
+        submission.StartPublishing(7);
+
+        Assert.Equal(7, submission.GitHubPullRequestNumber);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void StartPublishing_rejects_non_positive_pull_request_numbers(int pullRequestNumber)
+    {
+        var submission = CreateValidSubmission();
+        submission.MarkAsValidating();
+        submission.MarkAsValidated();
+        submission.SendForReview(42);
+        submission.Approve();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => submission.StartPublishing(pullRequestNumber));
     }
 
     [Fact]
@@ -127,7 +179,7 @@ public class SubmissionTests
     {
         var submission = CreateValidSubmission();
 
-        var ex = Assert.Throws<InvalidSubmissionTransitionException>(submission.SendForReview);
+        var ex = Assert.Throws<InvalidSubmissionTransitionException>(() => submission.SendForReview(42));
 
         Assert.Equal(SubmissionStatus.Received, ex.From);
         Assert.Equal(SubmissionStatus.UnderReview, ex.To);
@@ -139,9 +191,9 @@ public class SubmissionTests
         var submission = CreateValidSubmission();
         submission.MarkAsValidating();
         submission.MarkAsValidated();
-        submission.SendForReview();
+        submission.SendForReview(42);
         submission.Approve();
-        submission.StartPublishing();
+        submission.StartPublishing(7);
         submission.MarkAsPublished();
 
         Assert.Throws<InvalidSubmissionTransitionException>(submission.MarkAsValidating);

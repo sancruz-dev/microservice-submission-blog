@@ -5,7 +5,10 @@ using ContentSubmission.Domain;
 
 namespace ContentSubmission.Application.Submissions;
 
-public sealed class SubmissionService(ISubmissionRepository repository)
+public sealed class SubmissionService(
+    ISubmissionRepository repository,
+    IGitHubIssueClient gitHubIssueClient,
+    IGitHubPullRequestClient gitHubPullRequestClient)
 {
     public async Task<Submission> CreateAsync(CreateSubmissionInput input, CancellationToken cancellationToken = default)
     {
@@ -92,6 +95,20 @@ public sealed class SubmissionService(ISubmissionRepository repository)
             parsed.FrontMatter.Tags,
             parsed.Body);
 
+        // Content was already fully validated above, so there's no separate
+        // async validation step to wait for - Validating/Validated happen back
+        // to back, right here. From there, creating the curation Issue and
+        // moving to UnderReview happen in this same request too (see ADR-003):
+        // no queue, no background step, so no in-between state where a
+        // submission is "Validated" but nobody has tried to open its Issue yet.
+        // If CreateIssueAsync throws, nothing has been persisted yet - the whole
+        // request fails and the author resubmits, instead of leaving a stuck row.
+        submission.MarkAsValidating();
+        submission.MarkAsValidated();
+
+        var issueNumber = await gitHubIssueClient.CreateIssueAsync(submission, cancellationToken);
+        submission.SendForReview(issueNumber);
+
         await repository.AddAsync(submission, cancellationToken);
 
         return submission;
@@ -99,6 +116,76 @@ public sealed class SubmissionService(ISubmissionRepository repository)
 
     public Task<Submission?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         repository.GetByIdAsync(id, cancellationToken);
+
+    /// <summary>
+    /// Applies the curator's decision from the GitHub Issues webhook (see
+    /// docs/decisions/ADR-003) - "completed" approves and immediately continues
+    /// into publishing (opens the Pull Request, same one-request-no-queue
+    /// philosophy as CreateAsync), "not_planned" rejects. Deliberately a no-op,
+    /// not an error, when the issue number is unknown or the submission has
+    /// already moved past UnderReview: GitHub redelivers webhooks on
+    /// timeout/failure, and this keeps a duplicate delivery from throwing
+    /// InvalidSubmissionTransitionException instead of just being silently
+    /// idempotent.
+    /// </summary>
+    public async Task HandleGitHubIssueClosedAsync(
+        int gitHubIssueNumber,
+        string? stateReason,
+        CancellationToken cancellationToken = default)
+    {
+        var submission = await repository.GetByGitHubIssueNumberAsync(gitHubIssueNumber, cancellationToken);
+
+        if (submission is null || submission.Status != SubmissionStatus.UnderReview)
+        {
+            return;
+        }
+
+        switch (stateReason)
+        {
+            case "completed":
+                submission.Approve();
+                var pullRequestNumber = await gitHubPullRequestClient.CreatePullRequestAsync(submission, cancellationToken);
+                submission.StartPublishing(pullRequestNumber);
+                break;
+            case "not_planned":
+                submission.Reject($"Rejected via GitHub Issue #{gitHubIssueNumber} (closed as not planned).");
+                break;
+            default:
+                // Unrecognized/missing state_reason - don't guess which way to go.
+                return;
+        }
+
+        await repository.UpdateAsync(submission, cancellationToken);
+    }
+
+    /// <summary>
+    /// Applies the "merged" half of publishing, from the blog repo's
+    /// pull_request webhook. Only a true merge (not a plain close) reaches
+    /// Published - closing a PR without merging leaves the submission in
+    /// Publishing, for a human to deal with manually (no automated retry/
+    /// re-open exists yet). Same idempotent-no-op shape as
+    /// HandleGitHubIssueClosedAsync, for the same reason (webhook redelivery).
+    /// </summary>
+    public async Task HandlePullRequestClosedAsync(
+        int gitHubPullRequestNumber,
+        bool merged,
+        CancellationToken cancellationToken = default)
+    {
+        if (!merged)
+        {
+            return;
+        }
+
+        var submission = await repository.GetByGitHubPullRequestNumberAsync(gitHubPullRequestNumber, cancellationToken);
+
+        if (submission is null || submission.Status != SubmissionStatus.Publishing)
+        {
+            return;
+        }
+
+        submission.MarkAsPublished();
+        await repository.UpdateAsync(submission, cancellationToken);
+    }
 
     public Task<IReadOnlyList<Submission>> GetAllAsync(CancellationToken cancellationToken = default) =>
         repository.GetAllAsync(cancellationToken);

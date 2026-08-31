@@ -1,0 +1,28 @@
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ContentSubmission.Infrastructure.Persistence.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddGitHubPullRequestNumber : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<int>(
+                name: "GitHubPullRequestNumber",
+                table: "Submissions",
+                type: "int",
+                nullable: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(
+                name: "GitHubPullRequestNumber",
+                table: "Submissions");
+        }
+    }
+}

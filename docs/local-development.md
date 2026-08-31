@@ -58,15 +58,14 @@ Para derrubar e apagar os dados também:
 docker compose down -v
 ```
 
-### Por que RabbitMQ e o blog Next.js não estão aqui
+### Por que o blog Next.js não está aqui
 
-RabbitMQ ainda não tem nenhum código publicando ou consumindo mensagens —
-isso chega na Fase 6. Subir o container agora seria infraestrutura sem uso
-real. O blog Next.js já roda bem sozinho (`npm run dev`, ou deploy via
-Vercel) sem precisar de SQL Server nem do .NET SDK — conteinerizá-lo não
-resolve nenhuma fricção real que exista hoje. Ambos podem ser adicionados
-depois, se/quando fizerem sentido (ex: um ambiente de demonstração completo,
-ou os testes de CI da Fase 11).
+O blog Next.js já roda bem sozinho (`npm run dev`, ou deploy via Vercel) sem
+precisar de SQL Server nem do .NET SDK — conteinerizá-lo não resolve nenhuma
+fricção real que exista hoje. Pode ser adicionado depois, se/quando fizer
+sentido (ex: um ambiente de demonstração completo, ou os testes de CI da
+Fase 7). RabbitMQ foi cortado do roadmap inteiramente — ver
+[ADR-002](decisions/ADR-002-why-not-rabbitmq-and-pipefy.md).
 
 ## Qual escolher?
 

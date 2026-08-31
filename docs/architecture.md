@@ -5,16 +5,24 @@
 O Content Submission Service é um serviço de domínio único responsável pelo
 workflow de submissão e curadoria de artigos técnicos para o
 [sancruzblog-nextjs](../../sancruzblog-nextjs). Ele **não** é um conjunto de
-microsserviços por responsabilidade (upload, validação, Pipefy, GitHub,
-notificação) — essas responsabilidades vivem como módulos dentro deste único
-serviço, a menos que surja uma justificativa arquitetural real para separar
-algum deles (ver [ADR-001](decisions/ADR-001-why-a-separate-submission-service.md)).
+microsserviços por responsabilidade (upload, validação, GitHub, notificação)
+— essas responsabilidades vivem como módulos dentro deste único serviço, a
+menos que surja uma justificativa arquitetural real para separar algum deles
+(ver [ADR-001](decisions/ADR-001-why-a-separate-submission-service.md)).
 
 ```
-Next.js (blog) --HTTP--> Content Submission Service --RabbitMQ--> Pipefy / GitHub
+Next.js (blog) --HTTP--> Content Submission Service --HTTP--> GitHub
                                     |
                               banco próprio
 ```
+
+Mensageria (RabbitMQ) e curadoria via Pipefy foram cortadas do roadmap — ver
+[ADR-002](decisions/ADR-002-why-not-rabbitmq-and-pipefy.md). O mecanismo que
+substitui o Pipefy é o fechamento de uma GitHub Issue (`Approved` via "close
+as completed", `Rejected` via "close as not planned"), criada em
+[`sancruz-dev/sancruzblog-content-curation`](https://github.com/sancruz-dev/sancruzblog-content-curation)
+(repositório privado dedicado, separado deste serviço, que continua
+público) — ver [ADR-003](decisions/ADR-003-curadoria-via-github-issues.md).
 
 O Next.js chama esta API diretamente do navegador (página `/submit`), não
 por um proxy interno — por isso o serviço precisa de CORS explícito para a
@@ -54,9 +62,9 @@ Received → Validating → Validated → UnderReview → Approved → Publishin
 Decisão importante: **falha e retry não são estados da Submission.**
 `FAILED`/`RETRYING` foram cogitados na fase de análise, mas modelá-los como
 estados do enum principal explodiria a máquina de estados sem necessidade.
-Quando a Fase 13 (Retry + Idempotência + DLQ) chegar, tentativas de
-processamento (ex: uma chamada ao Pipefy que falhou e será tentada de novo)
-serão registradas em uma entidade separada (`ProcessingAttempt`, ainda não
+Quando a Fase 9 (Retry + Idempotência) chegar, tentativas de processamento
+(ex: uma chamada à API do GitHub que falhou e será tentada de novo) serão
+registradas em uma entidade separada (`ProcessingAttempt`, ainda não
 implementada) associada à submissão — a submissão em si permanece no mesmo
 status enquanto uma nova tentativa acontece, e só transiciona para um estado
 terminal se todas as tentativas se esgotarem.
@@ -205,9 +213,9 @@ em `Program.cs`) — conveniente por ainda não existir pipeline de deploy
 
 `docker-compose.yml` sobe o Submission Service e um SQL Server próprio,
 isolado de qualquer instância nativa já instalada (porta e volume
-diferentes). Só esses dois — RabbitMQ ainda não tem produtor/consumidor
-(chega na Fase 6) e o blog Next.js já roda bem sozinho, sem depender de SQL
-Server nem do .NET SDK. Ver
+diferentes). Só esses dois — RabbitMQ foi cortado do roadmap (ver
+[ADR-002](decisions/ADR-002-why-not-rabbitmq-and-pipefy.md)) e o blog
+Next.js já roda bem sozinho, sem depender de SQL Server nem do .NET SDK. Ver
 [docs/local-development.md](local-development.md) para os dois fluxos
 (nativo vs. Docker) lado a lado.
 
@@ -229,12 +237,14 @@ retry no nível da aplicação.
 
 ## O que ainda não existe (por fase)
 
+Fases renumeradas depois do corte de mensageria e Pipefy (ver
+[ADR-002](decisions/ADR-002-why-not-rabbitmq-and-pipefy.md)). RabbitMQ
+(antiga Fase 6) e Pipefy + webhooks (antigas Fases 7-8) saíram do roadmap.
+
 | Fase | Escopo |
 |---|---|
-| 6 | RabbitMQ e os primeiros eventos assíncronos |
-| 7-8 | Integração com Pipefy + webhooks |
-| 9-10 | Integração com GitHub + Pull Requests automáticos |
-| 11 | CI/CD do próprio serviço e do pipeline de publicação |
-| 12 | Observabilidade (correlation ID, logging estruturado, métricas) |
-| 13 | Retry, idempotência, Dead Letter Queue |
-| 14 | Security hardening |
+| 6 | Integração com GitHub: curadoria via Issues em `sancruz-dev/sancruzblog-content-curation` (privado, [ADR-003](decisions/ADR-003-curadoria-via-github-issues.md)) + Pull Requests automáticos no repositório do blog após aprovação |
+| 7 | CI/CD do próprio serviço e do pipeline de publicação. Deploy em Azure Container Apps, imagem no Docker Hub, banco em Azure SQL Database serverless ([ADR-004](decisions/ADR-004-deploy-azure-container-apps.md)) |
+| 8 | Observabilidade (correlation ID, logging estruturado, métricas) |
+| 9 | Retry e idempotência para chamadas a integrações externas (ex: GitHub) — sem Dead Letter Queue, que só fazia sentido com fila de mensagens |
+| 10 | Security hardening |
