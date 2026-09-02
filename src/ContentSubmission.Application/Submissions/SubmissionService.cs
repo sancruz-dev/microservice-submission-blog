@@ -8,10 +8,13 @@ namespace ContentSubmission.Application.Submissions;
 public sealed class SubmissionService(
     ISubmissionRepository repository,
     IGitHubIssueClient gitHubIssueClient,
-    IGitHubPullRequestClient gitHubPullRequestClient)
+    IGitHubPullRequestClient gitHubPullRequestClient,
+    SubmissionMetrics metrics)
 {
     public async Task<Submission> CreateAsync(CreateSubmissionInput input, CancellationToken cancellationToken = default)
     {
+        metrics.SubmissionReceived();
+
         var errors = new List<string>();
 
         var parsed = MdxDocumentParser.Parse(input.RawMdx);
@@ -82,6 +85,7 @@ public sealed class SubmissionService(
 
         if (errors.Count > 0)
         {
+            metrics.SubmissionRejected();
             throw new InvalidSubmissionContentException(errors);
         }
 

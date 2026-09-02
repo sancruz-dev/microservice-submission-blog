@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using ContentSubmission.Api.Endpoints;
 using ContentSubmission.Api.Middleware;
 using ContentSubmission.Application.Abstractions;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using ContentSubmission.Application.Submissions;
 using ContentSubmission.Infrastructure.GitHub;
 using ContentSubmission.Infrastructure.Persistence;
@@ -15,6 +16,15 @@ builder.Logging.AddJsonConsole(options =>
     options.IncludeScopes = true;
     options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ ";
 });
+
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics.AddMeter(SubmissionMetrics.MeterName))
+    .UseAzureMonitor(options =>
+    {
+        options.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+    });
+
+builder.Services.AddSingleton<SubmissionMetrics>();
 
 builder.Services.AddOpenApi();
 
