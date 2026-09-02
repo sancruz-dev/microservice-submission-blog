@@ -9,6 +9,13 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ ";
+});
+
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<ContentSubmissionDbContext>(options =>
