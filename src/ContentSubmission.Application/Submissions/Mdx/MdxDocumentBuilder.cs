@@ -1,4 +1,5 @@
 using ContentSubmission.Domain;
+using YamlDotNet.Core;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -18,9 +19,37 @@ public static class MdxDocumentBuilder
         .WithNamingConvention(CamelCaseNamingConvention.Instance)
         .Build();
 
+    /// <summary>
+    /// Named (not anonymous) so the "Date" field can carry a
+    /// [YamlMember(ScalarStyle = ...)] attribute - anonymous types can't take
+    /// attributes. Quoting matters here: an unquoted "yyyy-MM-dd" scalar is a
+    /// valid YAML 1.1 timestamp, so gray-matter's YAML parser (js-yaml) would
+    /// turn it into a JS Date instead of a string, and Next.js's
+    /// getStaticProps then fails to JSON-serialize that Date into page props.
+    /// </summary>
+    private sealed class FrontMatter
+    {
+        public required string Title { get; init; }
+
+        public required string Description { get; init; }
+
+        [YamlMember(ScalarStyle = ScalarStyle.SingleQuoted)]
+        public required string Date { get; init; }
+
+        public required string Slug { get; init; }
+
+        public required string Author { get; init; }
+
+        public required string Category { get; init; }
+
+        public required string Level { get; init; }
+
+        public required IReadOnlyList<string> Tags { get; init; }
+    }
+
     public static string Build(Submission submission, DateTimeOffset? publishedAt = null)
     {
-        var frontMatter = new
+        var frontMatter = new FrontMatter
         {
             Title = submission.Title,
             Description = submission.Description,
