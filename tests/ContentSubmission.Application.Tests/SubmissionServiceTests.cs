@@ -33,12 +33,22 @@ public class SubmissionServiceTests
         return submission;
     }
 
+    private static SubmissionService CreateService(
+        ISubmissionRepository repository,
+        IGitHubIssueClient? gitHubIssueClient = null,
+        IGitHubPullRequestClient? gitHubPullRequestClient = null) =>
+        new(
+            repository,
+            gitHubIssueClient ?? new NotUsedGitHubIssueClient(),
+            gitHubPullRequestClient ?? new NotUsedGitHubPullRequestClient(),
+            new SubmissionMetrics());
+
     [Fact]
     public async Task HandleGitHubIssueClosedAsync_approves_and_opens_a_pull_request_on_completed()
     {
         var submission = CreateUnderReviewSubmission();
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new StubGitHubPullRequestClient(101));
+        var service = CreateService(repository, gitHubPullRequestClient: new StubGitHubPullRequestClient(101));
 
         await service.HandleGitHubIssueClosedAsync(submission.GitHubIssueNumber!.Value, "completed");
 
@@ -54,7 +64,7 @@ public class SubmissionServiceTests
     {
         var submission = CreateUnderReviewSubmission();
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new NotUsedGitHubPullRequestClient());
+        var service = CreateService(repository);
 
         await service.HandleGitHubIssueClosedAsync(submission.GitHubIssueNumber!.Value, "not_planned");
 
@@ -67,7 +77,7 @@ public class SubmissionServiceTests
     {
         var submission = CreateUnderReviewSubmission(gitHubIssueNumber: 1);
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new NotUsedGitHubPullRequestClient());
+        var service = CreateService(repository);
 
         await service.HandleGitHubIssueClosedAsync(gitHubIssueNumber: 999, "completed");
 
@@ -79,7 +89,7 @@ public class SubmissionServiceTests
     {
         var submission = CreateUnderReviewSubmission();
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new NotUsedGitHubPullRequestClient());
+        var service = CreateService(repository);
 
         await service.HandleGitHubIssueClosedAsync(submission.GitHubIssueNumber!.Value, stateReason: null);
 
@@ -91,7 +101,7 @@ public class SubmissionServiceTests
     {
         var submission = CreateUnderReviewSubmission();
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new StubGitHubPullRequestClient(101));
+        var service = CreateService(repository, gitHubPullRequestClient: new StubGitHubPullRequestClient(101));
 
         await service.HandleGitHubIssueClosedAsync(submission.GitHubIssueNumber!.Value, "completed");
         // GitHub can redeliver the same webhook (timeout, retry) - a second
@@ -109,7 +119,7 @@ public class SubmissionServiceTests
     {
         var submission = CreatePublishingSubmission();
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new NotUsedGitHubPullRequestClient());
+        var service = CreateService(repository);
 
         await service.HandlePullRequestClosedAsync(submission.GitHubPullRequestNumber!.Value, merged: true);
 
@@ -121,7 +131,7 @@ public class SubmissionServiceTests
     {
         var submission = CreatePublishingSubmission();
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new NotUsedGitHubPullRequestClient());
+        var service = CreateService(repository);
 
         await service.HandlePullRequestClosedAsync(submission.GitHubPullRequestNumber!.Value, merged: false);
 
@@ -133,7 +143,7 @@ public class SubmissionServiceTests
     {
         var submission = CreatePublishingSubmission(gitHubPullRequestNumber: 1);
         var repository = new FakeSubmissionRepository([submission]);
-        var service = new SubmissionService(repository, new NotUsedGitHubIssueClient(), new NotUsedGitHubPullRequestClient());
+        var service = CreateService(repository);
 
         await service.HandlePullRequestClosedAsync(gitHubPullRequestNumber: 999, merged: true);
 
