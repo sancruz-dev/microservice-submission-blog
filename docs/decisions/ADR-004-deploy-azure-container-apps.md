@@ -42,10 +42,6 @@ a imagem, e onde rodar o banco.
   não Azure Key Vault. Volume pequeno de segredos (token do GitHub,
   segredo do webhook, connection string) não justifica o recurso e a
   identidade gerenciada extra que o Key Vault exigiria.
-- **Provisionamento: comandos `az` CLI diretos**, não Bicep/Terraform.
-  Poucos recursos, criados uma vez só - infraestrutura como código teria
-  valor de sinal de portfólio, mas seria complexidade desproporcional ao
-  que existe hoje pra manter atualizada.
 - **Autenticação do GitHub Actions no Azure: OIDC federado** (Azure AD App
   Registration + federated credential confiada ao emissor do GitHub
   Actions, escopo restrito a `repo:sancruz-dev/microservice-submission-blog:ref:refs/heads/main`),
