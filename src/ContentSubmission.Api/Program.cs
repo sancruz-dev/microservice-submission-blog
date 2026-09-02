@@ -17,12 +17,21 @@ builder.Logging.AddJsonConsole(options =>
     options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ ";
 });
 
-builder.Services.AddOpenTelemetry()
-    .WithMetrics(metrics => metrics.AddMeter(SubmissionMetrics.MeterName))
-    .UseAzureMonitor(options =>
-    {
-        options.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
-    });
+// Azure Monitor is only wired up when a connection string is actually
+// configured (production, via the Container App secret; locally, via User
+// Secrets if you want to see it exported). Environments without one - CI,
+// or a fresh dev machine that hasn't set up User Secrets yet - still boot
+// normally, they just don't export telemetry anywhere. UseAzureMonitor()
+// throws at startup if given a null/empty connection string, so skipping
+// it entirely (rather than passing a placeholder) is what keeps the app
+// from crashing in those environments.
+var appInsightsConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+{
+    builder.Services.AddOpenTelemetry()
+        .WithMetrics(metrics => metrics.AddMeter(SubmissionMetrics.MeterName))
+        .UseAzureMonitor(options => options.ConnectionString = appInsightsConnectionString);
+}
 
 builder.Services.AddSingleton<SubmissionMetrics>();
 
