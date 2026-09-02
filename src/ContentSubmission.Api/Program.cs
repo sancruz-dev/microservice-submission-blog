@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using ContentSubmission.Api.Endpoints;
+using ContentSubmission.Api.Middleware;
 using ContentSubmission.Application.Abstractions;
 using ContentSubmission.Application.Submissions;
 using ContentSubmission.Infrastructure.GitHub;
@@ -83,6 +84,8 @@ if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
+app.UseMiddleware<CorrelationIdMiddleware>();
 
 app.UseCors(FrontendCorsPolicy);
 
