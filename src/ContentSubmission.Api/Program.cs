@@ -92,8 +92,19 @@ void ConfigureGitHubClient(HttpClient client)
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 }
 
-builder.Services.AddHttpClient<IGitHubIssueClient, GitHubIssueClient>(ConfigureGitHubClient);
-builder.Services.AddHttpClient<IGitHubPullRequestClient, GitHubPullRequestClient>(ConfigureGitHubClient);
+// The standard resilience handler (Microsoft.Extensions.Http.Resilience) adds
+// retry with exponential backoff+jitter, a circuit breaker and a timeout
+// around every call these clients make. Both talk to the same external
+// system (the GitHub REST API), so a transient 502/503 or a 429 rate-limit
+// response no longer fails the whole submission outright - it retries a few
+// times first, same class of fix as EnableRetryOnFailure() above for the
+// database. GitHubPullRequestClient benefits most: it makes four sequential
+// calls to publish one submission, and any one of them failing used to kill
+// the whole operation.
+builder.Services.AddHttpClient<IGitHubIssueClient, GitHubIssueClient>(ConfigureGitHubClient)
+    .AddStandardResilienceHandler();
+builder.Services.AddHttpClient<IGitHubPullRequestClient, GitHubPullRequestClient>(ConfigureGitHubClient)
+    .AddStandardResilienceHandler();
 
 // Allows the Next.js frontend (a different origin) to call this API directly
 // from the browser. Origins come from config, not hardcoded, since the
@@ -106,6 +117,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy(FrontendCorsPolicy, policy =>
         policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod());
 });
+
+builder.Services.AddSubmissionRateLimiting(isTesting: builder.Environment.IsEnvironment("Testing"));
 
 var app = builder.Build();
 
@@ -132,6 +145,8 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<CorrelationIdMiddleware>();
 
 app.UseCors(FrontendCorsPolicy);
+
+app.UseRateLimiter();
 
 app.MapSubmissionEndpoints();
 app.MapGitHubWebhookEndpoints();

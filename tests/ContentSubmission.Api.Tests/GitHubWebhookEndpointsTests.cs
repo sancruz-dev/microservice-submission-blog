@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using ContentSubmission.Api.Contracts;
+using ContentSubmission.Application.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ContentSubmission.Api.Tests;
 
@@ -10,6 +12,12 @@ public class GitHubWebhookEndpointsTests(TestWebApplicationFactory factory)
     : IClassFixture<TestWebApplicationFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();
+
+    // GET /submissions was removed (ADR-006), so these tests read state back
+    // directly from the in-memory repository the factory injects, instead of
+    // through the API.
+    private ISubmissionRepository Repository => factory.Services.CreateScope().ServiceProvider
+        .GetRequiredService<ISubmissionRepository>();
 
     private static StringContent SignedJson(string json, string secret = TestWebApplicationFactory.WebhookSecret)
     {
@@ -80,14 +88,14 @@ public class GitHubWebhookEndpointsTests(TestWebApplicationFactory factory)
 
     private async Task<SubmissionResponse> GetByIssueAsync(int issueNumber)
     {
-        var all = await _client.GetFromJsonAsync<List<SubmissionResponse>>("/submissions");
-        return all!.Single(s => s.GitHubIssueNumber == issueNumber);
+        var all = await Repository.GetAllAsync();
+        return SubmissionResponse.FromDomain(all.Single(s => s.GitHubIssueNumber == issueNumber));
     }
 
     private async Task<SubmissionResponse> GetByPullRequestAsync(int pullRequestNumber)
     {
-        var all = await _client.GetFromJsonAsync<List<SubmissionResponse>>("/submissions");
-        return all!.Single(s => s.GitHubPullRequestNumber == pullRequestNumber);
+        var all = await Repository.GetAllAsync();
+        return SubmissionResponse.FromDomain(all.Single(s => s.GitHubPullRequestNumber == pullRequestNumber));
     }
 
     [Fact]

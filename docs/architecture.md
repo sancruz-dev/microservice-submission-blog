@@ -235,51 +235,32 @@ Server ainda não terminou de subir" veio de `restart: unless-stopped` no
 Compose (nível de container, sem re-executar DDL não-idempotente), não de
 retry no nível da aplicação.
 
-## Observabilidade (Fase 8)
+## Fases 9-10: resiliência HTTP, ordem persistir-antes-de-integrar, security hardening
 
-Três peças, todas com APIs nativas do .NET — ver
-[ADR-005](decisions/ADR-005-observabilidade-minima.md) para o porquê de cada
-escolha e do que ficou de fora:
+Ver [ADR-006](decisions/ADR-006-resiliencia-e-security-hardening.md) para o
+raciocínio completo. Resumo do que mudou:
 
-- **Correlation ID** (`CorrelationIdMiddleware`, na Api): lê
-  `X-Correlation-Id` do request ou gera um `Guid`, devolve no header da
-  resposta e anexa via `ILogger.BeginScope` a todo log daquela requisição.
-- **Logging estruturado**: `AddJsonConsole` com `IncludeScopes = true` —
-  sem essa flag o Correlation ID nunca chega ao log. Cada linha vira um
-  objeto JSON no `stdout`, que o Container Apps já coleta para o Log
-  Analytics do ambiente, sem agente adicional.
-- **Métricas**: `SubmissionMetrics` (um `Meter`, contadores
-  `submissions.received` e `submissions.rejected`), exportadas para o
-  Application Insights junto com a auto-instrumentação de requests e de
-  chamadas HTTP de saída que o pacote do Azure Monitor liga por padrão.
+- `GitHubIssueClient` e `GitHubPullRequestClient` ganharam
+  `AddStandardResilienceHandler()` (retry com backoff exponencial, circuit
+  breaker, timeout) — sem isso, um 502/503 ou 429 da API do GitHub
+  derrubava a submissão inteira, e `GitHubPullRequestClient` é
+  particularmente exposto por fazer quatro chamadas em sequência.
+- `SubmissionService.CreateAsync` agora persiste a submissão como
+  `Validated` **antes** de criar a Issue no GitHub, não depois. A ordem
+  antiga foi a causa direta de uma Issue órfã observada em produção
+  (banco falhou depois da Issue já criada); a nova ordem não elimina a
+  janela de falha parcial entre os dois sistemas, mas garante que uma
+  falha deixa uma linha recuperável no nosso banco, não lixo num sistema
+  de terceiros.
+- `GET /submissions` e `GET /submissions/{id}` foram removidos: não eram
+  consumidos pelo frontend e o primeiro expunha o e-mail de todo autor
+  sem autenticação.
+- `POST /submissions` ganhou rate limiting (5 req/min por IP, nativo do
+  ASP.NET Core) — é público e sem autenticação por design, mas cria uma
+  Issue no GitHub e grava no banco a cada chamada.
 
-O exportador do Azure Monitor **só** é registrado quando
-`ApplicationInsights:ConnectionString` existe na configuração: sem isso a
-aplicação sobe normalmente e apenas não exporta telemetria (é o caso do CI e
-de uma máquina de desenvolvimento sem User Secrets). Passar uma connection
-string vazia derruba a aplicação no startup, então o registro é condicional
-em vez de usar um valor placeholder.
-
-**Correção ao que a Fase 5 dizia sobre retry**: aquela seção acima concluiu
-que `EnableRetryOnFailure()` não valia a pena. Isso continua verdade **em
-Development**, pelo motivo exato descrito lá (retry + `MigrateAsync()` no
-startup). Em produção não: o primeiro teste de ponta a ponta depois do
-deploy desta fase pegou um `SqlException 40613` — o Azure SQL serverless
-estava em auto-pause e não acordou a tempo, e a submissão falhou **depois**
-de já ter criado a Issue de curadoria no GitHub, deixando uma Issue órfã.
-`EnableRetryOnFailure()` agora está ligado, mas apenas fora de Development,
-onde a migração automática não roda.
-
-## O que ainda não existe (por fase)
-
-Fases renumeradas depois do corte de mensageria e Pipefy (ver
-[ADR-002](decisions/ADR-002-why-not-rabbitmq-and-pipefy.md)). RabbitMQ
-(antiga Fase 6) e Pipefy + webhooks (antigas Fases 7-8) saíram do roadmap.
-
-| Fase | Escopo |
-|---|---|
-| 6 | ✅ Integração com GitHub: curadoria via Issues em `sancruz-dev/sancruzblog-content-curation` (privado, [ADR-003](decisions/ADR-003-curadoria-via-github-issues.md)) + Pull Requests automáticos no repositório do blog após aprovação |
-| 7 | ✅ CI/CD do próprio serviço e do pipeline de publicação. Deploy em Azure Container Apps, imagem no Docker Hub, banco em Azure SQL Database serverless ([ADR-004](decisions/ADR-004-deploy-azure-container-apps.md)) |
-| 8 | ✅ Observabilidade (correlation ID, logging estruturado, métricas) — ver seção acima e [ADR-005](decisions/ADR-005-observabilidade-minima.md) |
-| 9 | Retry e idempotência para chamadas a integrações externas (ex: GitHub) — sem Dead Letter Queue, que só fazia sentido com fila de mensagens |
-| 10 | Security hardening |
+Deliberadamente cortados: a entidade `ProcessingAttempt` prevista acima
+(não há produtor desses dados com retry síncrono, ao invés de fila),
+idempotency key no POST (baixa probabilidade, correção cara), security
+headers (API JSON, não página renderizada) e autenticação no POST (o
+formulário precisa ser público).
