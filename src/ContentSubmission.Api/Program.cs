@@ -38,7 +38,25 @@ builder.Services.AddSingleton<SubmissionMetrics>();
 builder.Services.AddOpenApi();
 
 builder.Services.AddDbContext<ContentSubmissionDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("SubmissionDb")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("SubmissionDb"),
+        sqlOptions =>
+        {
+            // Azure SQL Database serverless (ADR-004) auto-pauses when idle and takes
+            // a few seconds to resume on the next connection - that resume window is
+            // exactly what SQL error 40613 ("database ... is not currently available")
+            // means, and it's transient by nature. Retry-on-failure is deliberately NOT
+            // enabled in Development: Fase 5 (see "Uma pegadinha real..." in
+            // architecture.md) found that combining it with the startup auto-migration
+            // (Database.MigrateAsync(), below) breaks a freshly created local SQL Server
+            // container, because a retry after a failed CREATE DATABASE reruns that
+            // non-idempotent statement. Production never runs that auto-migration
+            // (it's Development-only, also below), so it doesn't share that risk.
+            if (!builder.Environment.IsDevelopment())
+            {
+                sqlOptions.EnableRetryOnFailure();
+            }
+        }));
 builder.Services.AddScoped<ISubmissionRepository, EfSubmissionRepository>();
 builder.Services.AddScoped<SubmissionService>();
 
