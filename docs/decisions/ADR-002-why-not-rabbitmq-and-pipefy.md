@@ -15,11 +15,11 @@ de aprendizado explícitos do projeto.
 Até a Fase 5 (Docker), nenhuma dessas peças tinha sido implementada:
 RabbitMQ nunca teve um produtor ou consumidor real, e a integração com
 Pipefy nunca saiu do diagrama conceitual. A prioridade do autor mudou para
-um perfil de vaga (Engenharia de Dados) cujos requisitos — Databricks,
+um objetivo de estudo mais alinhado a Engenharia de Dados — Databricks,
 Python, Power BI, SQL Server, CI/CD, orquestração de pipelines,
-observabilidade, arquitetura de dados/aplicações — não incluem mensageria,
-processamento assíncrono via fila, nem integração com uma ferramenta de
-workflow externa como o Pipefy.
+observabilidade, arquitetura de dados/aplicações — área que não inclui
+mensageria, processamento assíncrono via fila, nem integração com uma
+ferramenta de workflow externa como o Pipefy.
 
 ## Decisão
 
@@ -52,9 +52,9 @@ Fases 9-15 renumeradas para 6-11 (ver tabela em
 **Alternativa considerada**: manter Pipefy, mas trocar RabbitMQ por uma
 chamada HTTP síncrona direta (Submission Service → Pipefy API). Rejeitada
 por ora — o problema não é a fila em si, é o próprio Pipefy não agregar
-sinal técnico relevante para o objetivo atual do projeto (portfólio para uma
-vaga de engenharia de dados); mantê-lo só trocaria uma complexidade
-descartada por outra.
+sinal técnico relevante para o objetivo atual do projeto (aprofundar, na
+prática, tópicos de engenharia de dados); mantê-lo só trocaria uma
+complexidade descartada por outra.
 
 ## Consequências
 

@@ -12,8 +12,8 @@ GitHub e depois falhou ao salvar no Azure SQL (auto-pause do serverless,
 ver ADR-005), deixando uma Issue órfã em um sistema onde não existe
 rollback. Isso motivou uma análise das Fases 9 (Retry/idempotência) e 10
 (Security hardening) do roadmap para decidir o que vale a pena implementar
-antes de fechar o projeto - critério: o que é justificável numa entrevista
-e o que é exposição real, não o que está bonito no checklist.
+antes de fechar o projeto - critério: o que é defensável tecnicamente e o
+que é exposição real, não o que está bonito no checklist.
 
 ## Decisão
 
