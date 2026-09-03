@@ -43,6 +43,55 @@ public class SubmissionServiceTests
             gitHubPullRequestClient ?? new NotUsedGitHubPullRequestClient(),
             new SubmissionMetrics());
 
+    private const string ValidMdx = """
+        ---
+        title: Title
+        description: Description
+        slug: title
+        author: Jane Doe
+        category: Backend
+        level: Beginner
+        ---
+
+        Body text.
+        """;
+
+    [Fact]
+    public async Task CreateAsync_persists_before_calling_GitHub()
+    {
+        var repository = new FakeSubmissionRepository([]);
+        var service = CreateService(
+            repository,
+            gitHubIssueClient: new ThrowingGitHubIssueClient());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateAsync(new CreateSubmissionInput(ValidMdx, "jane@example.com")));
+
+        // ADR-006: the row must already be saved (Validated) by the time the
+        // GitHub call is attempted, so a failure here - like the one that
+        // actually happened in production - leaves a recoverable row in our
+        // own database instead of nothing at all.
+        var saved = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal(SubmissionStatus.Validated, saved.Status);
+        Assert.Null(saved.GitHubIssueNumber);
+    }
+
+    [Fact]
+    public async Task CreateAsync_moves_to_UnderReview_after_the_issue_is_created()
+    {
+        var repository = new FakeSubmissionRepository([]);
+        var service = CreateService(repository, gitHubIssueClient: new StubGitHubIssueClient(7));
+
+        var submission = await service.CreateAsync(new CreateSubmissionInput(ValidMdx, "jane@example.com"));
+
+        Assert.Equal(SubmissionStatus.UnderReview, submission.Status);
+        Assert.Equal(7, submission.GitHubIssueNumber);
+
+        var saved = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal(SubmissionStatus.UnderReview, saved.Status);
+        Assert.Equal(7, saved.GitHubIssueNumber);
+    }
+
     [Fact]
     public async Task HandleGitHubIssueClosedAsync_approves_and_opens_a_pull_request_on_completed()
     {
@@ -160,6 +209,18 @@ public class SubmissionServiceTests
     {
         public Task<int> CreatePullRequestAsync(Submission submission, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Should never create a Pull Request in this test.");
+    }
+
+    private sealed class StubGitHubIssueClient(int issueNumber) : IGitHubIssueClient
+    {
+        public Task<int> CreateIssueAsync(Submission submission, CancellationToken cancellationToken = default) =>
+            Task.FromResult(issueNumber);
+    }
+
+    private sealed class ThrowingGitHubIssueClient : IGitHubIssueClient
+    {
+        public Task<int> CreateIssueAsync(Submission submission, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Simulated GitHub outage.");
     }
 
     private sealed class StubGitHubPullRequestClient(int pullRequestNumber) : IGitHubPullRequestClient

@@ -65,24 +65,24 @@ public class SubmissionsEndpointsTests(TestWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task GET_returns_a_previously_created_submission()
+    public async Task GET_by_id_no_longer_exists()
     {
-        var createResponse = await _client.PostAsync("/submissions", BuildRequest());
-        var created = await createResponse.Content.ReadFromJsonAsync<SubmissionResponse>();
-
-        var getResponse = await _client.GetAsync($"/submissions/{created!.Id}");
-
-        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-        var fetched = await getResponse.Content.ReadFromJsonAsync<SubmissionResponse>();
-        Assert.Equal(created.Id, fetched!.Id);
-    }
-
-    [Fact]
-    public async Task GET_returns_404_for_unknown_id()
-    {
+        // Removed in ADR-006: it was unused by the frontend and, together with
+        // the list endpoint, exposed every author's email to anyone with the
+        // Container App URL.
         var response = await _client.GetAsync($"/submissions/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GET_list_no_longer_exists()
+    {
+        // "/submissions" still matches the POST route, so an unsupported verb
+        // there is a 405, not a 404.
+        var response = await _client.GetAsync("/submissions");
+
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
     }
 
     [Fact]

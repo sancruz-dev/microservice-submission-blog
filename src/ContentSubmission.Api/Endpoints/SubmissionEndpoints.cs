@@ -14,9 +14,14 @@ public static class SubmissionEndpoints
     {
         var group = app.MapGroup("/submissions").WithTags("Submissions");
 
-        group.MapPost("/", CreateSubmission).DisableAntiforgery();
-        group.MapGet("/{id:guid}", GetSubmission);
-        group.MapGet("/", GetAllSubmissions);
+        // GET /submissions and GET /submissions/{id} were removed (ADR-006):
+        // the frontend only ever calls POST, and the list endpoint returned
+        // every author's email address to anyone with the URL. Querying
+        // submissions now happens directly against the database (see the
+        // workspace insights query in docs/), not through the public API.
+        group.MapPost("/", CreateSubmission)
+            .DisableAntiforgery()
+            .RequireRateLimiting(SubmissionRateLimiting.PolicyName);
     }
 
     private static async Task<IResult> CreateSubmission(
@@ -73,27 +78,4 @@ public static class SubmissionEndpoints
         }
     }
 
-    private static async Task<IResult> GetSubmission(
-        Guid id,
-        SubmissionService submissionService,
-        CancellationToken cancellationToken)
-    {
-        var submission = await submissionService.GetByIdAsync(id, cancellationToken);
-
-        return submission is null
-            ? Results.NotFound()
-            : Results.Ok(SubmissionResponse.FromDomain(submission));
-    }
-
-    private static async Task<IResult> GetAllSubmissions(
-        SubmissionService submissionService,
-        CancellationToken cancellationToken)
-    {
-        var submissions = await submissionService.GetAllAsync(cancellationToken);
-
-        // Maps the list of domain submissions to the list of API responses.
-        var response = submissions.Select(SubmissionResponse.FromDomain);
-
-        return Results.Ok(response);
-    }
 }

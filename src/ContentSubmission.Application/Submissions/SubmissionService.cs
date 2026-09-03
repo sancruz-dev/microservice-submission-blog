@@ -101,19 +101,26 @@ public sealed class SubmissionService(
 
         // Content was already fully validated above, so there's no separate
         // async validation step to wait for - Validating/Validated happen back
-        // to back, right here. From there, creating the curation Issue and
-        // moving to UnderReview happen in this same request too (see ADR-003):
-        // no queue, no background step, so no in-between state where a
-        // submission is "Validated" but nobody has tried to open its Issue yet.
-        // If CreateIssueAsync throws, nothing has been persisted yet - the whole
-        // request fails and the author resubmits, instead of leaving a stuck row.
+        // to back, right here.
+        //
+        // Persisted as Validated *before* calling GitHub (ADR-006), not after:
+        // the previous order created the Issue first and only then saved to
+        // the database, so a transient database failure (see EnableRetryOnFailure
+        // above, and its Fase 8 incident) left an orphaned Issue in a
+        // third-party system with no way to roll it back. Saving first means
+        // the same kind of failure instead leaves a recoverable row in *our*
+        // database - visible, queryable, safe to retry - rather than untracked
+        // GitHub state. It doesn't eliminate the partial-failure window (only
+        // an outbox/saga would), it just moves it somewhere we control.
         submission.MarkAsValidating();
         submission.MarkAsValidated();
+
+        await repository.AddAsync(submission, cancellationToken);
 
         var issueNumber = await gitHubIssueClient.CreateIssueAsync(submission, cancellationToken);
         submission.SendForReview(issueNumber);
 
-        await repository.AddAsync(submission, cancellationToken);
+        await repository.UpdateAsync(submission, cancellationToken);
 
         return submission;
     }

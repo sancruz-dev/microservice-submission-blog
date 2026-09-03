@@ -39,8 +39,12 @@ A API sobe em `http://localhost:5080` (ou na porta definida em
 
 ```
 POST /submissions        cria uma submissão
-GET  /submissions/{id}   consulta uma submissão pelo id
 ```
+
+`GET /submissions` e `GET /submissions/{id}` existiram até a Fase 9 e foram
+removidos (ADR-006): não eram usados pelo frontend e expunham o e-mail de
+todo autor a qualquer requisição não autenticada. Consultas administrativas
+agora são feitas direto no Azure SQL / Log Analytics.
 
 Exemplo:
 
@@ -80,9 +84,6 @@ curl -X POST http://localhost:5080/submissions \
 curl -X POST http://localhost:5080/submissions \
   -H "Content-Type: application/json" \
   -d '{"title":"x","description":"y","authorName":"a","authorEmail":"a@a.com","category":"Backend","level":"Expert","slug":"algum-slug","tags":[]}'
-
-# id inexistente -> 404
-curl http://localhost:5080/submissions/00000000-0000-0000-0000-000000000000
 ```
 
 No domínio, `SlugTests` e `SubmissionAuthorTests` cobrem especificamente

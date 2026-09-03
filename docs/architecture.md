@@ -235,6 +235,36 @@ Server ainda não terminou de subir" veio de `restart: unless-stopped` no
 Compose (nível de container, sem re-executar DDL não-idempotente), não de
 retry no nível da aplicação.
 
+## Fases 9-10: resiliência HTTP, ordem persistir-antes-de-integrar, security hardening
+
+Ver [ADR-006](decisions/ADR-006-resiliencia-e-security-hardening.md) para o
+raciocínio completo. Resumo do que mudou:
+
+- `GitHubIssueClient` e `GitHubPullRequestClient` ganharam
+  `AddStandardResilienceHandler()` (retry com backoff exponencial, circuit
+  breaker, timeout) — sem isso, um 502/503 ou 429 da API do GitHub
+  derrubava a submissão inteira, e `GitHubPullRequestClient` é
+  particularmente exposto por fazer quatro chamadas em sequência.
+- `SubmissionService.CreateAsync` agora persiste a submissão como
+  `Validated` **antes** de criar a Issue no GitHub, não depois. A ordem
+  antiga foi a causa direta de uma Issue órfã observada em produção
+  (banco falhou depois da Issue já criada); a nova ordem não elimina a
+  janela de falha parcial entre os dois sistemas, mas garante que uma
+  falha deixa uma linha recuperável no nosso banco, não lixo num sistema
+  de terceiros.
+- `GET /submissions` e `GET /submissions/{id}` foram removidos: não eram
+  consumidos pelo frontend e o primeiro expunha o e-mail de todo autor
+  sem autenticação.
+- `POST /submissions` ganhou rate limiting (5 req/min por IP, nativo do
+  ASP.NET Core) — é público e sem autenticação por design, mas cria uma
+  Issue no GitHub e grava no banco a cada chamada.
+
+Deliberadamente cortados: a entidade `ProcessingAttempt` prevista acima
+(não há produtor desses dados com retry síncrono, ao invés de fila),
+idempotency key no POST (baixa probabilidade, correção cara), security
+headers (API JSON, não página renderizada) e autenticação no POST (o
+formulário precisa ser público).
+
 ## O que ainda não existe (por fase)
 
 Fases renumeradas depois do corte de mensageria e Pipefy (ver
@@ -246,5 +276,3 @@ Fases renumeradas depois do corte de mensageria e Pipefy (ver
 | 6 | Integração com GitHub: curadoria via Issues em `sancruz-dev/sancruzblog-content-curation` (privado, [ADR-003](decisions/ADR-003-curadoria-via-github-issues.md)) + Pull Requests automáticos no repositório do blog após aprovação |
 | 7 | CI/CD do próprio serviço e do pipeline de publicação. Deploy em Azure Container Apps, imagem no Docker Hub, banco em Azure SQL Database serverless ([ADR-004](decisions/ADR-004-deploy-azure-container-apps.md)) |
 | 8 | Observabilidade (correlation ID, logging estruturado, métricas) |
-| 9 | Retry e idempotência para chamadas a integrações externas (ex: GitHub) — sem Dead Letter Queue, que só fazia sentido com fila de mensagens |
-| 10 | Security hardening |
