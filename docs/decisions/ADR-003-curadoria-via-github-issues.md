@@ -18,8 +18,8 @@ na máquina de estados do `Submission`. Duas opções foram avaliadas:
    a própria Fase 6 (Pull Requests automáticos) — reaproveitar a mesma API e
    a mesma infraestrutura de webhook para curadoria evita introduzir uma
    ferramenta externa nova (o problema original do Pipefy), mantendo o sinal
-   técnico de "webhook + integração com API externa" que a vaga-alvo valoriza
-   como diferencial.
+   técnico de "webhook + integração com API externa" que eu queria
+   aprofundar como estudo.
 
 Opção 2 foi escolhida. Restava decidir **onde** essas Issues vivem.
 

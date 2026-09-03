@@ -9,9 +9,9 @@ Aceito
 Até a Fase 6, o Content Submission Service só rodava localmente
 (`dotnet run` ou `docker compose`). A Fase 7 (CI/CD) já tinha CI básica nos
 dois repositórios; faltava o lado de **deploy contínuo**. Isso também é o
-pedaço do roadmap com maior alinhamento direto à vaga que motivou o pivô do
-projeto (ver [[sancruzblog-project-pivot]] na memória) - infraestrutura
-Cloud e CI/CD são pedidos explicitamente.
+pedaço do roadmap com maior alinhamento direto ao objetivo de estudo que
+motivou o pivô do projeto - infraestrutura Cloud e CI/CD são o foco
+explícito dessa fase.
 
 Três decisões precisavam ser tomadas: onde rodar o container, onde guardar
 a imagem, e onde rodar o banco.
