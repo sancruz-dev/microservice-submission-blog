@@ -264,15 +264,3 @@ Deliberadamente cortados: a entidade `ProcessingAttempt` prevista acima
 idempotency key no POST (baixa probabilidade, correção cara), security
 headers (API JSON, não página renderizada) e autenticação no POST (o
 formulário precisa ser público).
-
-## O que ainda não existe (por fase)
-
-Fases renumeradas depois do corte de mensageria e Pipefy (ver
-[ADR-002](decisions/ADR-002-why-not-rabbitmq-and-pipefy.md)). RabbitMQ
-(antiga Fase 6) e Pipefy + webhooks (antigas Fases 7-8) saíram do roadmap.
-
-| Fase | Escopo |
-|---|---|
-| 6 | Integração com GitHub: curadoria via Issues em `sancruz-dev/sancruzblog-content-curation` (privado, [ADR-003](decisions/ADR-003-curadoria-via-github-issues.md)) + Pull Requests automáticos no repositório do blog após aprovação |
-| 7 | CI/CD do próprio serviço e do pipeline de publicação. Deploy em Azure Container Apps, imagem no Docker Hub, banco em Azure SQL Database serverless ([ADR-004](decisions/ADR-004-deploy-azure-container-apps.md)) |
-| 8 | Observabilidade (correlation ID, logging estruturado, métricas) |
